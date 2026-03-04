@@ -48,6 +48,23 @@ export async function fetchGestalts() {
   return mapRows(data || []);
 }
 
+export async function fetchCollaborator() {
+  if (!hasSupabaseEnv) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("collaborators")
+    .select("email, full_name, role")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
 export async function createGestalt(payload) {
   if (!hasSupabaseEnv) {
     return {
