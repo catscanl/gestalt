@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Filter, LogOut, Mail, MessageCircle, Plus, Search, Send, ShieldCheck, Trash2 } from "lucide-react";
+import { AlertCircle, Filter, LogOut, Lock, Mail, MessageCircle, Plus, Search, Send, ShieldCheck, Trash2 } from "lucide-react";
 import { INITIAL_GESTALTS } from "./data";
-import { getSession, onAuthStateChange, signInWithMagicLink, signOut } from "./lib/auth";
+import { getSession, onAuthStateChange, signInWithPassword, signOut, signUpWithPassword } from "./lib/auth";
 import { addComment, createGestalt, deleteGestalt, fetchCollaborator, fetchGestalts, toggleFlag } from "./lib/gestalts";
 import { hasSupabaseEnv } from "./lib/supabase";
 
@@ -23,8 +23,10 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [authEmail, setAuthEmail] = useState("");
-  const [isSendingLink, setIsSendingLink] = useState(false);
-  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [authPassword, setAuthPassword] = useState("");
+  const [authMode, setAuthMode] = useState("sign-in");
+  const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
+  const [authNotice, setAuthNotice] = useState("");
   const [session, setSession] = useState(null);
   const [collaborator, setCollaborator] = useState(null);
 
@@ -129,22 +131,28 @@ export default function App() {
     [filterStatus, gestalts, searchQuery, showFlaggedOnly],
   );
 
-  async function handleMagicLink(event) {
+  async function handleAuthSubmit(event) {
     event.preventDefault();
 
-    if (!authEmail.trim()) {
+    if (!authEmail.trim() || !authPassword.trim()) {
       return;
     }
 
     try {
-      setIsSendingLink(true);
-      await signInWithMagicLink(authEmail.trim());
-      setMagicLinkSent(true);
+      setIsSubmittingAuth(true);
+      if (authMode === "sign-up") {
+        await signUpWithPassword(authEmail.trim(), authPassword);
+        setAuthNotice("Account created. Sign in with the same email and password.");
+        setAuthMode("sign-in");
+      } else {
+        await signInWithPassword(authEmail.trim(), authPassword);
+        setAuthNotice("");
+      }
       setErrorMessage("");
     } catch (error) {
-      setErrorMessage(error.message || "Unable to send sign-in link.");
+      setErrorMessage(error.message || "Unable to authenticate.");
     } finally {
-      setIsSendingLink(false);
+      setIsSubmittingAuth(false);
     }
   }
 
@@ -153,7 +161,8 @@ export default function App() {
       await signOut();
       setCollaborator(null);
       setSession(null);
-      setMagicLinkSent(false);
+      setAuthPassword("");
+      setAuthNotice("");
     } catch (error) {
       setErrorMessage(error.message || "Unable to sign out.");
     }
@@ -282,7 +291,7 @@ export default function App() {
     return (
       <Shell>
         <Header
-          subtitle="Secure sign-in with Supabase magic links."
+          subtitle="Secure sign-in with Supabase email and password."
           title="Gestalt Tracker"
         />
         <div className="mx-auto max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
@@ -292,18 +301,35 @@ export default function App() {
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-900">Sign in</h2>
-              <p className="text-sm text-slate-500">Use an approved email address to receive a magic link.</p>
+              <p className="text-sm text-slate-500">Use an approved email address and password.</p>
             </div>
           </div>
 
           {errorMessage && <Banner tone="error">{errorMessage}</Banner>}
-          {magicLinkSent && (
-            <Banner tone="success">
-              Check your email for the sign-in link, then come back to this tab.
-            </Banner>
-          )}
+          {authNotice && <Banner tone="success">{authNotice}</Banner>}
 
-          <form className="space-y-4" onSubmit={handleMagicLink}>
+          <div className="mb-5 flex rounded-2xl bg-slate-100 p-1 text-sm">
+            <button
+              className={`flex-1 rounded-xl px-3 py-2 font-medium transition ${
+                authMode === "sign-in" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+              }`}
+              onClick={() => setAuthMode("sign-in")}
+              type="button"
+            >
+              Sign in
+            </button>
+            <button
+              className={`flex-1 rounded-xl px-3 py-2 font-medium transition ${
+                authMode === "sign-up" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+              }`}
+              onClick={() => setAuthMode("sign-up")}
+              type="button"
+            >
+              Create account
+            </button>
+          </div>
+
+          <form className="space-y-4" onSubmit={handleAuthSubmit}>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">Email</label>
               <div className="flex items-center gap-2 rounded-2xl border border-slate-300 px-3 py-2">
@@ -319,12 +345,30 @@ export default function App() {
               </div>
             </div>
 
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Password</label>
+              <div className="flex items-center gap-2 rounded-2xl border border-slate-300 px-3 py-2">
+                <Lock className="h-4 w-4 text-slate-400" />
+                <input
+                  className="w-full border-0 p-0 outline-none"
+                  placeholder="At least 6 characters"
+                  type="password"
+                  value={authPassword}
+                  onChange={(event) => setAuthPassword(event.target.value)}
+                />
+              </div>
+            </div>
+
             <button
               className="w-full rounded-2xl bg-indigo-600 px-4 py-3 font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-              disabled={isSendingLink}
+              disabled={isSubmittingAuth}
               type="submit"
             >
-              {isSendingLink ? "Sending link..." : "Email me a sign-in link"}
+              {isSubmittingAuth
+                ? "Working..."
+                : authMode === "sign-up"
+                  ? "Create account"
+                  : "Sign in"}
             </button>
           </form>
         </div>

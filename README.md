@@ -13,14 +13,16 @@ React + Vite single-page app for tracking gestalt language phrases, backed by Su
 
 1. Create a new Supabase project.
 2. In the SQL editor, run [`supabase/schema.sql`](/Users/cathy/Documents/codex/gestalt/supabase/schema.sql#L1).
-3. In `Authentication` -> `URL Configuration`, add these redirect URLs:
+3. In `Authentication` -> `URL Configuration`, set the site URL to your live app URL and add these redirect URLs:
    - `http://localhost:5173`
    - your Cloudflare Pages URL
    - `https://gestalt.cathyscanlon.com`
-4. In `Settings` -> `API`, copy:
+4. In `Authentication` -> `Providers` -> `Email`, enable email/password sign-in.
+5. If you want people to create a password and use the app immediately, turn off email confirmation for now.
+6. In `Settings` -> `API`, copy:
    - Project URL into `VITE_SUPABASE_URL`
    - Publishable key into `VITE_SUPABASE_PUBLISHABLE_KEY`
-5. Add approved people to the `collaborators` table in the SQL editor or Table Editor, for example:
+7. Add approved people to the `collaborators` table in the SQL editor or Table Editor, for example:
 
 ```sql
 insert into public.collaborators (email, full_name, role)
@@ -31,7 +33,7 @@ values
 
 ## Security model
 
-- Users sign in with Supabase magic links.
+- Users sign in with Supabase email/password auth.
 - Only emails present in `public.collaborators` can read or write app data.
 - `Admin` and `Contributor` can create gestalts.
 - `Admin` and `SLT` can update gestalts, including the SLT flag.
