@@ -402,6 +402,21 @@ export default function App() {
     );
   }
 
+  if (loading || !collaborator) {
+    return (
+      <Shell>
+        <Header
+          subtitle={session?.user?.email || "Loading your workspace..."}
+          title="Gestalt Tracker"
+        />
+        {errorMessage && <Banner tone="error">{errorMessage}</Banner>}
+        <div className="rounded-3xl border border-slate-200 bg-white px-6 py-12 text-center text-slate-500 shadow-sm">
+          Loading your workspace...
+        </div>
+      </Shell>
+    );
+  }
+
   return (
     <Shell>
       <Header
