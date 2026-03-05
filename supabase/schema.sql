@@ -10,6 +10,7 @@ create table if not exists public.gestalts (
   stage text not null default '',
   date_of_entry date,
   inactive_date date,
+  usage_context text not null default '',
   status text not null check (status in ('Active', 'Fading', 'Archived')),
   flagged_for_slt boolean not null default false,
   created_by text not null default 'Unknown',
@@ -24,7 +25,8 @@ alter table public.gestalts
   add column if not exists model_options text not null default '',
   add column if not exists stage text not null default '',
   add column if not exists date_of_entry date,
-  add column if not exists inactive_date date;
+  add column if not exists inactive_date date,
+  add column if not exists usage_context text not null default '';
 
 do $$
 begin

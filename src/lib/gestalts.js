@@ -3,10 +3,12 @@ import { hasSupabaseEnv, supabase } from "./supabase";
 
 const BASE_SELECT =
   "id, phrase, source, meaning, status, flagged_for_slt, created_by, created_by_role, created_at, comments(id, author, text, role, created_at)";
-const EXTENDED_SELECT =
+const EXTENDED_SELECT_V1 =
   "id, phrase, source, meaning, communication_function, model_options, stage, date_of_entry, inactive_date, status, flagged_for_slt, created_by, created_by_role, created_at, comments(id, author, text, role, created_at)";
+const EXTENDED_SELECT_V2 =
+  "id, phrase, source, meaning, communication_function, model_options, stage, date_of_entry, inactive_date, usage_context, status, flagged_for_slt, created_by, created_by_role, created_at, comments(id, author, text, role, created_at)";
 
-let supportsExtendedFields = null;
+let supportedFieldLevel = null;
 
 function formatRelativeTime(isoString) {
   try {
@@ -30,6 +32,7 @@ function mapRows(rows) {
     stage: row.stage || "",
     dateOfEntry: row.date_of_entry || "",
     inactiveDate: row.inactive_date || "",
+    usageContext: row.usage_context || "",
     status: row.status,
     flaggedForSlt: row.flagged_for_slt,
     createdBy: row.created_by || "Unknown",
@@ -52,32 +55,50 @@ function isMissingColumnError(error) {
 
 async function getGestaltSelectClause() {
   if (!hasSupabaseEnv) {
-    return BASE_SELECT;
+    return { selectClause: BASE_SELECT, fieldLevel: 0 };
   }
 
-  if (supportsExtendedFields !== null) {
-    return supportsExtendedFields ? EXTENDED_SELECT : BASE_SELECT;
+  if (supportedFieldLevel !== null) {
+    if (supportedFieldLevel === 2) {
+      return { selectClause: EXTENDED_SELECT_V2, fieldLevel: 2 };
+    }
+
+    if (supportedFieldLevel === 1) {
+      return { selectClause: EXTENDED_SELECT_V1, fieldLevel: 1 };
+    }
+
+    return { selectClause: BASE_SELECT, fieldLevel: 0 };
   }
 
-  const { error } = await supabase
+  const { error: v2Error } = await supabase
+    .from("gestalts")
+    .select("id, communication_function, model_options, stage, date_of_entry, inactive_date, usage_context")
+    .limit(1);
+
+  if (!v2Error) {
+    supportedFieldLevel = 2;
+    return { selectClause: EXTENDED_SELECT_V2, fieldLevel: 2 };
+  }
+
+  const { error: v1Error } = await supabase
     .from("gestalts")
     .select("id, communication_function, model_options, stage, date_of_entry, inactive_date")
     .limit(1);
 
-  if (!error) {
-    supportsExtendedFields = true;
-    return EXTENDED_SELECT;
+  if (!v1Error) {
+    supportedFieldLevel = 1;
+    return { selectClause: EXTENDED_SELECT_V1, fieldLevel: 1 };
   }
 
-  if (isMissingColumnError(error)) {
-    supportsExtendedFields = false;
-    return BASE_SELECT;
+  if (isMissingColumnError(v1Error)) {
+    supportedFieldLevel = 0;
+    return { selectClause: BASE_SELECT, fieldLevel: 0 };
   }
 
-  throw error;
+  throw v1Error;
 }
 
-function getInsertOrUpdatePayload(payload, includeExtendedFields) {
+function getInsertOrUpdatePayload(payload, fieldLevel) {
   const basePayload = {
     phrase: payload.phrase,
     source: payload.source,
@@ -88,11 +109,11 @@ function getInsertOrUpdatePayload(payload, includeExtendedFields) {
     created_by_role: payload.createdByRole,
   };
 
-  if (!includeExtendedFields) {
+  if (fieldLevel === 0) {
     return basePayload;
   }
 
-  return {
+  const extendedPayload = {
     ...basePayload,
     communication_function: payload.communicationFunction,
     model_options: payload.modelOptions,
@@ -100,6 +121,12 @@ function getInsertOrUpdatePayload(payload, includeExtendedFields) {
     date_of_entry: payload.dateOfEntry || null,
     inactive_date: payload.inactiveDate || null,
   };
+
+  if (fieldLevel === 2) {
+    extendedPayload.usage_context = payload.usageContext || "";
+  }
+
+  return extendedPayload;
 }
 
 export async function fetchGestalts() {
@@ -107,7 +134,7 @@ export async function fetchGestalts() {
     return INITIAL_GESTALTS;
   }
 
-  const selectClause = await getGestaltSelectClause();
+  const { selectClause } = await getGestaltSelectClause();
 
   const { data, error } = await supabase
     .from("gestalts")
@@ -131,12 +158,11 @@ export async function createGestalt(payload) {
     };
   }
 
-  const selectClause = await getGestaltSelectClause();
-  const includeExtendedFields = selectClause === EXTENDED_SELECT;
+  const { selectClause, fieldLevel } = await getGestaltSelectClause();
 
   const { data, error } = await supabase
     .from("gestalts")
-    .insert(getInsertOrUpdatePayload(payload, includeExtendedFields))
+    .insert(getInsertOrUpdatePayload(payload, fieldLevel))
     .select(selectClause)
     .single();
 
@@ -170,6 +196,7 @@ export async function updateGestalt(id, payload) {
     stage: payload.stage || "",
     dateOfEntry: payload.dateOfEntry || "",
     inactiveDate: payload.inactiveDate || "",
+    usageContext: payload.usageContext || "",
     status: payload.status,
     flaggedForSlt: payload.flaggedForSlt,
     createdBy: payload.createdBy || "Unknown",
@@ -182,12 +209,11 @@ export async function updateGestalt(id, payload) {
     return normalized;
   }
 
-  const selectClause = await getGestaltSelectClause();
-  const includeExtendedFields = selectClause === EXTENDED_SELECT;
+  const { fieldLevel } = await getGestaltSelectClause();
 
   const { error } = await supabase
     .from("gestalts")
-    .update(getInsertOrUpdatePayload(payload, includeExtendedFields))
+    .update(getInsertOrUpdatePayload(payload, fieldLevel))
     .eq("id", id);
 
   if (error) {

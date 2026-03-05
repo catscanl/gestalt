@@ -4,19 +4,26 @@ import { INITIAL_GESTALTS, USERS } from "./data";
 import { addComment, createGestalt, deleteGestalt, fetchGestalts, toggleFlag, updateGestalt } from "./lib/gestalts";
 import { hasSupabaseEnv } from "./lib/supabase";
 
-const EMPTY_GESTALT = {
-  phrase: "",
-  source: "",
-  meaning: "",
-  communicationFunction: "",
-  modelOptions: "",
-  stage: "",
-  dateOfEntry: "",
-  inactiveDate: "",
-  status: "Active",
-  flaggedForSlt: false,
-  createdById: USERS[0].id,
-};
+function getTodayIsoDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function createEmptyGestalt() {
+  return {
+    phrase: "",
+    source: "",
+    meaning: "",
+    communicationFunction: "",
+    modelOptions: "",
+    stage: "",
+    dateOfEntry: getTodayIsoDate(),
+    inactiveDate: "",
+    usageContext: "",
+    status: "Active",
+    flaggedForSlt: false,
+    createdById: USERS[0].id,
+  };
+}
 
 export default function App() {
   const [gestalts, setGestalts] = useState(INITIAL_GESTALTS);
@@ -25,8 +32,8 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [newGestalt, setNewGestalt] = useState(EMPTY_GESTALT);
-  const [editGestalt, setEditGestalt] = useState(EMPTY_GESTALT);
+  const [newGestalt, setNewGestalt] = useState(createEmptyGestalt);
+  const [editGestalt, setEditGestalt] = useState(createEmptyGestalt);
   const [editingGestaltId, setEditingGestaltId] = useState(null);
   const [loading, setLoading] = useState(hasSupabaseEnv);
   const [errorMessage, setErrorMessage] = useState("");
@@ -95,7 +102,7 @@ export default function App() {
 
   async function handleAddGestalt(event) {
     event.preventDefault();
-    if (!newGestalt.phrase.trim() || !newGestalt.meaning.trim()) {
+    if (!newGestalt.phrase.trim()) {
       return;
     }
 
@@ -108,7 +115,7 @@ export default function App() {
       const created = await createGestalt(payload);
       setGestalts((current) => [created, ...current]);
       setIsAddModalOpen(false);
-      setNewGestalt(EMPTY_GESTALT);
+      setNewGestalt(createEmptyGestalt());
       setErrorMessage("");
       setSuccessMessage("Gestalt saved.");
     } catch (error) {
@@ -135,6 +142,7 @@ export default function App() {
       stage: gestalt.stage || "",
       dateOfEntry: gestalt.dateOfEntry || "",
       inactiveDate: gestalt.inactiveDate || "",
+      usageContext: gestalt.usageContext || "",
       status: gestalt.status,
       flaggedForSlt: gestalt.flaggedForSlt,
       createdById: matchedCreator.id,
@@ -145,7 +153,7 @@ export default function App() {
 
   async function handleEditGestalt(event) {
     event.preventDefault();
-    if (!editingGestaltId || !editGestalt.phrase.trim() || !editGestalt.meaning.trim()) {
+    if (!editingGestaltId || !editGestalt.phrase.trim()) {
       return;
     }
 
@@ -171,7 +179,7 @@ export default function App() {
       );
       setIsEditModalOpen(false);
       setEditingGestaltId(null);
-      setEditGestalt(EMPTY_GESTALT);
+      setEditGestalt(createEmptyGestalt());
       setErrorMessage("");
       setSuccessMessage("Changes saved.");
     } catch (error) {
@@ -499,7 +507,7 @@ function GestaltDashboard({
               />
 
               <Field
-                label="Observed Meaning *"
+                label="Observed Meaning"
                 placeholder="What is he trying to communicate?"
                 value={newGestalt.meaning}
                 onChange={(value) => setNewGestalt((current) => ({ ...current, meaning: value }))}
@@ -533,6 +541,13 @@ function GestaltDashboard({
                 placeholder="e.g., 1, 2, 1/2"
                 value={newGestalt.stage}
                 onChange={(value) => setNewGestalt((current) => ({ ...current, stage: value }))}
+              />
+
+              <Field
+                label="Where Used"
+                placeholder="e.g., School only, Home only, Both"
+                value={newGestalt.usageContext}
+                onChange={(value) => setNewGestalt((current) => ({ ...current, usageContext: value }))}
               />
 
               <div>
@@ -635,7 +650,7 @@ function GestaltDashboard({
               />
 
               <Field
-                label="Observed Meaning *"
+                label="Observed Meaning"
                 placeholder="What is he trying to communicate?"
                 value={editGestalt.meaning}
                 onChange={(value) => setEditGestalt((current) => ({ ...current, meaning: value }))}
@@ -669,6 +684,13 @@ function GestaltDashboard({
                 placeholder="e.g., 1, 2, 1/2"
                 value={editGestalt.stage}
                 onChange={(value) => setEditGestalt((current) => ({ ...current, stage: value }))}
+              />
+
+              <Field
+                label="Where Used"
+                placeholder="e.g., School only, Home only, Both"
+                value={editGestalt.usageContext}
+                onChange={(value) => setEditGestalt((current) => ({ ...current, usageContext: value }))}
               />
 
               <div>
@@ -834,6 +856,9 @@ function GestaltCard({
             )}
             {gestalt.modelOptions && (
               <p className="mt-1 text-xs text-slate-500">Model options: {gestalt.modelOptions}</p>
+            )}
+            {gestalt.usageContext && (
+              <p className="mt-1 text-xs text-slate-500">Where used: {gestalt.usageContext}</p>
             )}
             <p className="mt-1 text-xs text-slate-500">
               Stage: {gestalt.stage || "Not set"}{" "}
