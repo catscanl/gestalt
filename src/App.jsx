@@ -64,7 +64,7 @@ export default function App() {
   const currentRole = activeUser.role;
   const canCreateGestalt = currentRole === "Admin" || currentRole === "Contributor";
   const canDeleteGestalt = currentRole === "Admin";
-  const canToggleFlag = currentRole === "Admin" || currentRole === "SLT";
+  const canToggleFlag = currentRole === "Admin" || currentRole === "Contributor" || currentRole === "SLT";
 
   const filteredGestalts = useMemo(
     () =>
