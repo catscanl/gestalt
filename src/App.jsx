@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Filter, MessageCircle, Plus, Search, Send, Trash2, UserCircle2 } from "lucide-react";
+import { AlertCircle, Filter, MessageCircle, Pencil, Plus, Search, Send, Trash2, UserCircle2 } from "lucide-react";
 import { INITIAL_GESTALTS, USERS } from "./data";
-import { addComment, createGestalt, deleteGestalt, fetchGestalts, toggleFlag } from "./lib/gestalts";
+import { addComment, createGestalt, deleteGestalt, fetchGestalts, toggleFlag, updateGestalt } from "./lib/gestalts";
 import { hasSupabaseEnv } from "./lib/supabase";
 
 const EMPTY_GESTALT = {
@@ -18,7 +18,10 @@ export default function App() {
   const [showFlaggedOnly, setShowFlaggedOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [newGestalt, setNewGestalt] = useState(EMPTY_GESTALT);
+  const [editGestalt, setEditGestalt] = useState(EMPTY_GESTALT);
+  const [editingGestaltId, setEditingGestaltId] = useState(null);
   const [loading, setLoading] = useState(hasSupabaseEnv);
   const [errorMessage, setErrorMessage] = useState("");
   const [activeUserId, setActiveUserId] = useState(USERS[0].id);
@@ -63,6 +66,7 @@ export default function App() {
 
   const currentRole = activeUser.role;
   const canCreateGestalt = currentRole === "Admin" || currentRole === "Contributor";
+  const canEditGestalt = currentRole === "Admin" || currentRole === "Contributor";
   const canDeleteGestalt = currentRole === "Admin";
   const canToggleFlag = currentRole === "Admin" || currentRole === "Contributor" || currentRole === "SLT";
 
@@ -101,6 +105,55 @@ export default function App() {
       setErrorMessage("");
     } catch (error) {
       setErrorMessage(error.message || "Unable to save gestalt.");
+    }
+  }
+
+  function handleStartEdit(gestalt) {
+    if (!canEditGestalt) {
+      return;
+    }
+
+    setEditingGestaltId(gestalt.id);
+    setEditGestalt({
+      phrase: gestalt.phrase,
+      source: gestalt.source,
+      meaning: gestalt.meaning,
+      status: gestalt.status,
+      flaggedForSlt: gestalt.flaggedForSlt,
+    });
+    setIsEditModalOpen(true);
+  }
+
+  async function handleEditGestalt(event) {
+    event.preventDefault();
+    if (!editingGestaltId || !editGestalt.phrase.trim() || !editGestalt.meaning.trim()) {
+      return;
+    }
+
+    const existing = gestalts.find((gestalt) => gestalt.id === editingGestaltId);
+    if (!existing) {
+      setErrorMessage("Unable to find gestalt to update.");
+      return;
+    }
+
+    try {
+      const updated = await updateGestalt(editingGestaltId, {
+        ...editGestalt,
+        createdBy: existing.createdBy,
+        createdByRole: existing.createdByRole,
+        comments: existing.comments,
+        createdAt: existing.createdAt,
+      });
+
+      setGestalts((current) =>
+        current.map((gestalt) => (gestalt.id === editingGestaltId ? updated : gestalt)),
+      );
+      setIsEditModalOpen(false);
+      setEditingGestaltId(null);
+      setEditGestalt(EMPTY_GESTALT);
+      setErrorMessage("");
+    } catch (error) {
+      setErrorMessage(error.message || "Unable to update gestalt.");
     }
   }
 
@@ -186,17 +239,22 @@ export default function App() {
       <GestaltDashboard
         activeUserId={activeUserId}
         canCreateGestalt={canCreateGestalt}
+        canEditGestalt={canEditGestalt}
         canDeleteGestalt={canDeleteGestalt}
         canToggleFlag={canToggleFlag}
+        editGestalt={editGestalt}
         filteredGestalts={filteredGestalts}
         filterStatus={filterStatus}
         isAddModalOpen={isAddModalOpen}
+        isEditModalOpen={isEditModalOpen}
         loading={loading}
         newGestalt={newGestalt}
         searchQuery={searchQuery}
         setActiveUserId={setActiveUserId}
+        setEditGestalt={setEditGestalt}
         setFilterStatus={setFilterStatus}
         setIsAddModalOpen={setIsAddModalOpen}
+        setIsEditModalOpen={setIsEditModalOpen}
         setNewGestalt={setNewGestalt}
         setSearchQuery={setSearchQuery}
         setShowFlaggedOnly={setShowFlaggedOnly}
@@ -205,6 +263,8 @@ export default function App() {
         onAddComment={handleAddComment}
         onAddGestalt={handleAddGestalt}
         onDelete={handleDelete}
+        onEdit={handleStartEdit}
+        onEditGestalt={handleEditGestalt}
         onToggleFlag={handleToggleFlag}
       />
     </Shell>
@@ -244,17 +304,22 @@ function Banner({ children, tone }) {
 function GestaltDashboard({
   activeUserId,
   canCreateGestalt,
+  canEditGestalt,
   canDeleteGestalt,
   canToggleFlag,
+  editGestalt,
   filteredGestalts,
   filterStatus,
   isAddModalOpen,
+  isEditModalOpen,
   loading,
   newGestalt,
   searchQuery,
   setActiveUserId,
+  setEditGestalt,
   setFilterStatus,
   setIsAddModalOpen,
+  setIsEditModalOpen,
   setNewGestalt,
   setSearchQuery,
   setShowFlaggedOnly,
@@ -263,6 +328,8 @@ function GestaltDashboard({
   onAddComment,
   onAddGestalt,
   onDelete,
+  onEdit,
+  onEditGestalt,
   onToggleFlag,
 }) {
   const currentUser = users.find((user) => user.id === activeUserId) || users[0];
@@ -364,11 +431,13 @@ function GestaltDashboard({
           filteredGestalts.map((gestalt) => (
             <GestaltCard
               key={gestalt.id}
+              canEditGestalt={canEditGestalt}
               canDeleteGestalt={canDeleteGestalt}
               canToggleFlag={canToggleFlag}
               gestalt={gestalt}
               onAddComment={onAddComment}
               onDelete={onDelete}
+              onEdit={onEdit}
               onToggleFlag={onToggleFlag}
             />
           ))
@@ -461,6 +530,93 @@ function GestaltDashboard({
           </div>
         </div>
       )}
+
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
+          <div className="max-h-[90vh] w-full max-w-md overflow-hidden rounded-3xl border border-white/70 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+              <h2 className="text-lg font-bold text-slate-900">Edit Gestalt</h2>
+              <button
+                className="text-2xl leading-none text-slate-400 transition hover:text-slate-700"
+                onClick={() => setIsEditModalOpen(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form className="space-y-4 overflow-y-auto p-6" onSubmit={onEditGestalt}>
+              <Field
+                autoFocus
+                label="The Phrase *"
+                placeholder='e.g., "Merry Christmas"'
+                value={editGestalt.phrase}
+                onChange={(value) => setEditGestalt((current) => ({ ...current, phrase: value }))}
+              />
+
+              <Field
+                label="Observed Meaning *"
+                placeholder="What is he trying to communicate?"
+                value={editGestalt.meaning}
+                onChange={(value) => setEditGestalt((current) => ({ ...current, meaning: value }))}
+              />
+
+              <Field
+                label="Original Source (Optional)"
+                placeholder="e.g., Peppa Pig, a song, etc."
+                value={editGestalt.source}
+                onChange={(value) => setEditGestalt((current) => ({ ...current, source: value }))}
+              />
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Status</label>
+                <select
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 outline-none ring-indigo-500 transition focus:ring-2"
+                  value={editGestalt.status}
+                  onChange={(event) =>
+                    setEditGestalt((current) => ({ ...current, status: event.target.value }))
+                  }
+                >
+                  <option value="Active">Active</option>
+                  <option value="Fading">Fading</option>
+                  <option value="Archived">Archived</option>
+                </select>
+              </div>
+
+              <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-orange-100 bg-orange-50 p-3 text-sm font-medium text-orange-800 transition hover:bg-orange-100">
+                <input
+                  checked={editGestalt.flaggedForSlt}
+                  type="checkbox"
+                  onChange={(event) =>
+                    setEditGestalt((current) => ({
+                      ...current,
+                      flaggedForSlt: event.target.checked,
+                    }))
+                  }
+                />
+                <AlertCircle className="h-4 w-4" />
+                Flag for SLT review
+              </label>
+
+              <div className="flex gap-3 pt-3">
+                <button
+                  className="flex-1 rounded-xl bg-slate-100 px-4 py-2 font-medium text-slate-700 transition hover:bg-slate-200"
+                  onClick={() => setIsEditModalOpen(false)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  className="flex-1 rounded-xl bg-indigo-600 px-4 py-2 font-medium text-white transition hover:bg-indigo-700"
+                  type="submit"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -483,11 +639,13 @@ function Field({ autoFocus = false, label, onChange, placeholder, value }) {
 }
 
 function GestaltCard({
+  canEditGestalt,
   canDeleteGestalt,
   canToggleFlag,
   gestalt,
   onAddComment,
   onDelete,
+  onEdit,
   onToggleFlag,
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -533,16 +691,29 @@ function GestaltCard({
           <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-3 sm:flex-col sm:items-end sm:border-t-0 sm:pt-0">
             <StatusBadge status={gestalt.status} />
 
-            {canDeleteGestalt && (
-              <button
-                className="p-2 text-slate-400 transition hover:text-red-500"
-                onClick={() => onDelete(gestalt.id)}
-                title="Delete"
-                type="button"
-              >
-                <Trash2 className="h-5 w-5" />
-              </button>
-            )}
+            <div className="flex items-center gap-1">
+              {canEditGestalt && (
+                <button
+                  className="p-2 text-slate-400 transition hover:text-indigo-600"
+                  onClick={() => onEdit(gestalt)}
+                  title="Edit"
+                  type="button"
+                >
+                  <Pencil className="h-5 w-5" />
+                </button>
+              )}
+
+              {canDeleteGestalt && (
+                <button
+                  className="p-2 text-slate-400 transition hover:text-red-500"
+                  onClick={() => onDelete(gestalt.id)}
+                  title="Delete"
+                  type="button"
+                >
+                  <Trash2 className="h-5 w-5" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

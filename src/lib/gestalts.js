@@ -97,6 +97,40 @@ export async function deleteGestalt(id) {
   }
 }
 
+export async function updateGestalt(id, payload) {
+  if (!hasSupabaseEnv) {
+    return {
+      ...payload,
+      id,
+      comments: payload.comments || [],
+      createdAt: payload.createdAt || new Date().toISOString(),
+    };
+  }
+
+  const { data, error } = await supabase
+    .from("gestalts")
+    .update({
+      phrase: payload.phrase,
+      source: payload.source,
+      meaning: payload.meaning,
+      status: payload.status,
+      flagged_for_slt: payload.flaggedForSlt,
+      created_by: payload.createdBy,
+      created_by_role: payload.createdByRole,
+    })
+    .eq("id", id)
+    .select(
+      "id, phrase, source, meaning, status, flagged_for_slt, created_by, created_by_role, created_at, comments(id, author, text, role, created_at)",
+    )
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return mapRows([data])[0];
+}
+
 export async function addComment(gestaltId, payload) {
   if (!hasSupabaseEnv) {
     return {
