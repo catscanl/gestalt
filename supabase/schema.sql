@@ -5,6 +5,11 @@ create table if not exists public.gestalts (
   phrase text not null,
   source text default '',
   meaning text not null,
+  communication_function text not null default '',
+  model_options text not null default '',
+  stage text not null default '',
+  date_of_entry date,
+  inactive_date date,
   status text not null check (status in ('Active', 'Fading', 'Archived')),
   flagged_for_slt boolean not null default false,
   created_by text not null default 'Unknown',
@@ -14,7 +19,12 @@ create table if not exists public.gestalts (
 
 alter table public.gestalts
   add column if not exists created_by text not null default 'Unknown',
-  add column if not exists created_by_role text not null default 'Contributor';
+  add column if not exists created_by_role text not null default 'Contributor',
+  add column if not exists communication_function text not null default '',
+  add column if not exists model_options text not null default '',
+  add column if not exists stage text not null default '',
+  add column if not exists date_of_entry date,
+  add column if not exists inactive_date date;
 
 do $$
 begin

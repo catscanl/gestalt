@@ -8,8 +8,14 @@ const EMPTY_GESTALT = {
   phrase: "",
   source: "",
   meaning: "",
+  communicationFunction: "",
+  modelOptions: "",
+  stage: "",
+  dateOfEntry: "",
+  inactiveDate: "",
   status: "Active",
   flaggedForSlt: false,
+  createdById: USERS[0].id,
 };
 
 export default function App() {
@@ -24,6 +30,7 @@ export default function App() {
   const [editingGestaltId, setEditingGestaltId] = useState(null);
   const [loading, setLoading] = useState(hasSupabaseEnv);
   const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [activeUserId, setActiveUserId] = useState(USERS[0].id);
 
   const activeUser = USERS.find((user) => user.id === activeUserId) || USERS[0];
@@ -103,8 +110,10 @@ export default function App() {
       setIsAddModalOpen(false);
       setNewGestalt(EMPTY_GESTALT);
       setErrorMessage("");
+      setSuccessMessage("Gestalt saved.");
     } catch (error) {
       setErrorMessage(error.message || "Unable to save gestalt.");
+      setSuccessMessage("");
     }
   }
 
@@ -113,15 +122,25 @@ export default function App() {
       return;
     }
 
+    const matchedCreator =
+      USERS.find((user) => user.fullName === gestalt.createdBy && user.role === gestalt.createdByRole) || USERS[0];
+
     setEditingGestaltId(gestalt.id);
     setEditGestalt({
       phrase: gestalt.phrase,
       source: gestalt.source,
       meaning: gestalt.meaning,
+      communicationFunction: gestalt.communicationFunction || "",
+      modelOptions: gestalt.modelOptions || "",
+      stage: gestalt.stage || "",
+      dateOfEntry: gestalt.dateOfEntry || "",
+      inactiveDate: gestalt.inactiveDate || "",
       status: gestalt.status,
       flaggedForSlt: gestalt.flaggedForSlt,
+      createdById: matchedCreator.id,
     });
-    setIsEditModalOpen(true);
+      setIsEditModalOpen(true);
+    setSuccessMessage("");
   }
 
   async function handleEditGestalt(event) {
@@ -131,6 +150,8 @@ export default function App() {
     }
 
     const existing = gestalts.find((gestalt) => gestalt.id === editingGestaltId);
+    const selectedCreator = USERS.find((user) => user.id === editGestalt.createdById) || USERS[0];
+
     if (!existing) {
       setErrorMessage("Unable to find gestalt to update.");
       return;
@@ -139,8 +160,8 @@ export default function App() {
     try {
       const updated = await updateGestalt(editingGestaltId, {
         ...editGestalt,
-        createdBy: existing.createdBy,
-        createdByRole: existing.createdByRole,
+        createdBy: selectedCreator.fullName,
+        createdByRole: selectedCreator.role,
         comments: existing.comments,
         createdAt: existing.createdAt,
       });
@@ -152,8 +173,10 @@ export default function App() {
       setEditingGestaltId(null);
       setEditGestalt(EMPTY_GESTALT);
       setErrorMessage("");
+      setSuccessMessage("Changes saved.");
     } catch (error) {
       setErrorMessage(error.message || "Unable to update gestalt.");
+      setSuccessMessage("");
     }
   }
 
@@ -165,8 +188,10 @@ export default function App() {
     try {
       await deleteGestalt(id);
       setGestalts((current) => current.filter((gestalt) => gestalt.id !== id));
+      setSuccessMessage("Gestalt deleted.");
     } catch (error) {
       setErrorMessage(error.message || "Unable to delete gestalt.");
+      setSuccessMessage("");
     }
   }
 
@@ -190,8 +215,10 @@ export default function App() {
             : gestalt,
         ),
       );
+      setSuccessMessage("Observation added.");
     } catch (error) {
       setErrorMessage(error.message || "Unable to add comment.");
+      setSuccessMessage("");
     }
   }
 
@@ -214,6 +241,7 @@ export default function App() {
 
     try {
       await toggleFlag(id, nextFlaggedValue);
+      setSuccessMessage("Flag updated.");
     } catch (error) {
       setGestalts((current) =>
         current.map((gestalt) =>
@@ -221,6 +249,7 @@ export default function App() {
         ),
       );
       setErrorMessage(error.message || "Unable to update flag.");
+      setSuccessMessage("");
     }
   }
 
@@ -235,6 +264,7 @@ export default function App() {
         <Banner tone="info">Add Supabase environment variables to enable shared live data.</Banner>
       )}
       {errorMessage && <Banner tone="error">{errorMessage}</Banner>}
+      {successMessage && <Banner tone="success">{successMessage}</Banner>}
 
       <GestaltDashboard
         activeUserId={activeUserId}
@@ -296,6 +326,7 @@ function Banner({ children, tone }) {
   const styles = {
     error: "border-red-200 bg-red-50 text-red-800",
     info: "border-indigo-200 bg-indigo-50 text-indigo-900",
+    success: "border-emerald-200 bg-emerald-50 text-emerald-800",
   };
 
   return <div className={`rounded-2xl border px-4 py-3 text-sm ${styles[tone]}`}>{children}</div>;
@@ -446,7 +477,7 @@ function GestaltDashboard({
 
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-md overflow-hidden rounded-3xl border border-white/70 bg-white shadow-2xl">
+          <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-white/70 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
               <h2 className="text-lg font-bold text-slate-900">Log New Gestalt</h2>
               <button
@@ -458,7 +489,7 @@ function GestaltDashboard({
               </button>
             </div>
 
-            <form className="space-y-4 overflow-y-auto p-6" onSubmit={onAddGestalt}>
+            <form className="flex-1 space-y-4 overflow-y-auto p-6" onSubmit={onAddGestalt}>
               <Field
                 autoFocus
                 label="The Phrase *"
@@ -481,6 +512,29 @@ function GestaltDashboard({
                 onChange={(value) => setNewGestalt((current) => ({ ...current, source: value }))}
               />
 
+              <Field
+                label="Communication Function"
+                placeholder="e.g., Requesting, Protesting, Commenting"
+                value={newGestalt.communicationFunction}
+                onChange={(value) =>
+                  setNewGestalt((current) => ({ ...current, communicationFunction: value }))
+                }
+              />
+
+              <Field
+                label="Model Options"
+                placeholder="e.g., It fell down, Oh no it fell down"
+                value={newGestalt.modelOptions}
+                onChange={(value) => setNewGestalt((current) => ({ ...current, modelOptions: value }))}
+              />
+
+              <Field
+                label="Stage"
+                placeholder="e.g., 1, 2, 1/2"
+                value={newGestalt.stage}
+                onChange={(value) => setNewGestalt((current) => ({ ...current, stage: value }))}
+              />
+
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">Status</label>
                 <select
@@ -494,6 +548,32 @@ function GestaltDashboard({
                   <option value="Fading">Fading</option>
                   <option value="Archived">Archived</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Date of Entry</label>
+                <input
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none ring-indigo-500 transition focus:ring-2"
+                  type="date"
+                  value={newGestalt.dateOfEntry}
+                  onChange={(event) =>
+                    setNewGestalt((current) => ({ ...current, dateOfEntry: event.target.value }))
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Inactive Date (if changed)
+                </label>
+                <input
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none ring-indigo-500 transition focus:ring-2"
+                  type="date"
+                  value={newGestalt.inactiveDate}
+                  onChange={(event) =>
+                    setNewGestalt((current) => ({ ...current, inactiveDate: event.target.value }))
+                  }
+                />
               </div>
 
               <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-orange-100 bg-orange-50 p-3 text-sm font-medium text-orange-800 transition hover:bg-orange-100">
@@ -533,7 +613,7 @@ function GestaltDashboard({
 
       {isEditModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-md overflow-hidden rounded-3xl border border-white/70 bg-white shadow-2xl">
+          <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-white/70 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
               <h2 className="text-lg font-bold text-slate-900">Edit Gestalt</h2>
               <button
@@ -545,7 +625,7 @@ function GestaltDashboard({
               </button>
             </div>
 
-            <form className="space-y-4 overflow-y-auto p-6" onSubmit={onEditGestalt}>
+            <form className="flex-1 space-y-4 overflow-y-auto p-6" onSubmit={onEditGestalt}>
               <Field
                 autoFocus
                 label="The Phrase *"
@@ -568,6 +648,29 @@ function GestaltDashboard({
                 onChange={(value) => setEditGestalt((current) => ({ ...current, source: value }))}
               />
 
+              <Field
+                label="Communication Function"
+                placeholder="e.g., Requesting, Protesting, Commenting"
+                value={editGestalt.communicationFunction}
+                onChange={(value) =>
+                  setEditGestalt((current) => ({ ...current, communicationFunction: value }))
+                }
+              />
+
+              <Field
+                label="Model Options"
+                placeholder="e.g., It fell down, Oh no it fell down"
+                value={editGestalt.modelOptions}
+                onChange={(value) => setEditGestalt((current) => ({ ...current, modelOptions: value }))}
+              />
+
+              <Field
+                label="Stage"
+                placeholder="e.g., 1, 2, 1/2"
+                value={editGestalt.stage}
+                onChange={(value) => setEditGestalt((current) => ({ ...current, stage: value }))}
+              />
+
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">Status</label>
                 <select
@@ -580,6 +683,49 @@ function GestaltDashboard({
                   <option value="Active">Active</option>
                   <option value="Fading">Fading</option>
                   <option value="Archived">Archived</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Date of Entry</label>
+                <input
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none ring-indigo-500 transition focus:ring-2"
+                  type="date"
+                  value={editGestalt.dateOfEntry}
+                  onChange={(event) =>
+                    setEditGestalt((current) => ({ ...current, dateOfEntry: event.target.value }))
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Inactive Date (if changed)
+                </label>
+                <input
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none ring-indigo-500 transition focus:ring-2"
+                  type="date"
+                  value={editGestalt.inactiveDate}
+                  onChange={(event) =>
+                    setEditGestalt((current) => ({ ...current, inactiveDate: event.target.value }))
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Added by</label>
+                <select
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 outline-none ring-indigo-500 transition focus:ring-2"
+                  value={editGestalt.createdById}
+                  onChange={(event) =>
+                    setEditGestalt((current) => ({ ...current, createdById: event.target.value }))
+                  }
+                >
+                  {users.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.label}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -598,7 +744,7 @@ function GestaltDashboard({
                 Flag for SLT review
               </label>
 
-              <div className="flex gap-3 pt-3">
+              <div className="sticky bottom-0 -mx-6 mt-2 flex gap-3 border-t border-slate-100 bg-white px-6 pb-1 pt-4">
                 <button
                   className="flex-1 rounded-xl bg-slate-100 px-4 py-2 font-medium text-slate-700 transition hover:bg-slate-200"
                   onClick={() => setIsEditModalOpen(false)}
@@ -610,7 +756,7 @@ function GestaltDashboard({
                   className="flex-1 rounded-xl bg-indigo-600 px-4 py-2 font-medium text-white transition hover:bg-indigo-700"
                   type="submit"
                 >
-                  Save Changes
+                  Save Gestalt
                 </button>
               </div>
             </form>
@@ -683,6 +829,17 @@ function GestaltCard({
               <span>{gestalt.meaning}</span>
             </p>
             {gestalt.source && <p className="text-xs text-slate-400">Source: {gestalt.source}</p>}
+            {gestalt.communicationFunction && (
+              <p className="mt-1 text-xs text-slate-500">Function: {gestalt.communicationFunction}</p>
+            )}
+            {gestalt.modelOptions && (
+              <p className="mt-1 text-xs text-slate-500">Model options: {gestalt.modelOptions}</p>
+            )}
+            <p className="mt-1 text-xs text-slate-500">
+              Stage: {gestalt.stage || "Not set"}{" "}
+              {gestalt.dateOfEntry ? `· Entered: ${gestalt.dateOfEntry}` : ""}
+              {gestalt.inactiveDate ? ` · Inactive: ${gestalt.inactiveDate}` : ""}
+            </p>
             <p className="mt-1 text-xs text-slate-400">
               Added by {gestalt.createdBy || "Unknown"} ({gestalt.createdByRole || "Contributor"})
             </p>
