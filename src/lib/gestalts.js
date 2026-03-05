@@ -20,6 +20,8 @@ function mapRows(rows) {
     meaning: row.meaning,
     status: row.status,
     flaggedForSlt: row.flagged_for_slt,
+    createdBy: row.created_by || "Unknown",
+    createdByRole: row.created_by_role || "Contributor",
     createdAt: row.created_at,
     comments: (row.comments || []).map((comment) => ({
       id: comment.id,
@@ -38,7 +40,9 @@ export async function fetchGestalts() {
 
   const { data, error } = await supabase
     .from("gestalts")
-    .select("id, phrase, source, meaning, status, flagged_for_slt, created_at, comments(id, author, text, role, created_at)")
+    .select(
+      "id, phrase, source, meaning, status, flagged_for_slt, created_by, created_by_role, created_at, comments(id, author, text, role, created_at)",
+    )
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -46,23 +50,6 @@ export async function fetchGestalts() {
   }
 
   return mapRows(data || []);
-}
-
-export async function fetchCollaborator() {
-  if (!hasSupabaseEnv) {
-    return null;
-  }
-
-  const { data, error } = await supabase
-    .from("collaborators")
-    .select("email, full_name, role")
-    .single();
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
 }
 
 export async function createGestalt(payload) {
@@ -83,8 +70,12 @@ export async function createGestalt(payload) {
       meaning: payload.meaning,
       status: payload.status,
       flagged_for_slt: payload.flaggedForSlt,
+      created_by: payload.createdBy,
+      created_by_role: payload.createdByRole,
     })
-    .select("id, phrase, source, meaning, status, flagged_for_slt, created_at, comments(id, author, text, role, created_at)")
+    .select(
+      "id, phrase, source, meaning, status, flagged_for_slt, created_by, created_by_role, created_at, comments(id, author, text, role, created_at)",
+    )
     .single();
 
   if (error) {

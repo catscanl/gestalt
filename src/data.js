@@ -1,7 +1,14 @@
 export const ROLES = [
-  { id: "Admin", name: "Mum (Parent/Admin)" },
-  { id: "Contributor", name: "David (LSA)" },
-  { id: "SLT", name: "Sarah (SLT)" },
+  { id: "Admin", name: "Admin" },
+  { id: "Contributor", name: "Contributor" },
+  { id: "SLT", name: "SLT" },
+];
+
+export const USERS = [
+  { id: "cathy", fullName: "Cathy", role: "Admin", label: "Cathy (Mum, Admin)" },
+  { id: "lenny", fullName: "Lenny", role: "Contributor", label: "Lenny (Dad, Contributor)" },
+  { id: "kayleigh", fullName: "Kayleigh", role: "Contributor", label: "Kayleigh (LSA, Contributor)" },
+  { id: "sinead", fullName: "Sinead", role: "SLT", label: "Sinead (SLT)" },
 ];
 
 export const INITIAL_GESTALTS = [
@@ -12,18 +19,20 @@ export const INITIAL_GESTALTS = [
     meaning: "I am feeling overwhelmed or experiencing high arousal (joy/distress)",
     status: "Active",
     flaggedForSlt: true,
+    createdBy: "Cathy",
+    createdByRole: "Admin",
     createdAt: "2023-10-15T10:00:00Z",
     comments: [
       {
         id: "c1",
-        author: "Mum",
+        author: "Cathy",
         text: "Said this twice today when his tower fell over.",
         role: "Admin",
         time: "10:30 AM",
       },
       {
         id: "c2",
-        author: "Sarah (SLT)",
+        author: "Sinead",
         text: "Classic Stage 1. Let's try modeling \"Oh no, it fell!\" next time.",
         role: "SLT",
         time: "1:15 PM",
@@ -37,11 +46,13 @@ export const INITIAL_GESTALTS = [
     meaning: "I want to go outside / transition to a new activity",
     status: "Active",
     flaggedForSlt: false,
+    createdBy: "Kayleigh",
+    createdByRole: "Contributor",
     createdAt: "2023-11-01T09:00:00Z",
     comments: [
       {
         id: "c3",
-        author: "David (LSA)",
+        author: "Kayleigh",
         text: "Used this when lining up for recess today.",
         role: "Contributor",
         time: "Yesterday",
@@ -55,6 +66,8 @@ export const INITIAL_GESTALTS = [
     meaning: "Anticipation / wanting me to push him on swing",
     status: "Fading",
     flaggedForSlt: false,
+    createdBy: "Lenny",
+    createdByRole: "Contributor",
     createdAt: "2023-08-20T14:00:00Z",
     comments: [],
   },

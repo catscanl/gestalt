@@ -13,32 +13,21 @@ React + Vite single-page app for tracking gestalt language phrases, backed by Su
 
 1. Create a new Supabase project.
 2. In the SQL editor, run [`supabase/schema.sql`](/Users/cathy/Documents/codex/gestalt/supabase/schema.sql#L1).
-3. In `Authentication` -> `URL Configuration`, set the site URL to your live app URL and add these redirect URLs:
-   - `http://localhost:5173`
-   - your Cloudflare Pages URL
-   - `https://gestalt.cathyscanlon.com`
-4. In `Authentication` -> `Providers` -> `Email`, enable email/password sign-in.
-5. If you want people to create a password and use the app immediately, turn off email confirmation for now.
-6. In `Settings` -> `API`, copy:
+3. In `Settings` -> `API`, copy:
    - Project URL into `VITE_SUPABASE_URL`
    - Publishable key into `VITE_SUPABASE_PUBLISHABLE_KEY`
-7. Add approved people to the `collaborators` table in the SQL editor or Table Editor, for example:
 
-```sql
-insert into public.collaborators (email, full_name, role)
-values
-  ('cathyscanlon2@gmail.com', 'Cathy Scanlon', 'Admin'),
-  ('someone@example.com', 'Supporter Name', 'Contributor');
-```
+## Testing users
 
-## Security model
+The app currently uses a fixed user switcher (no login):
 
-- Users sign in with Supabase email/password auth.
-- Only emails present in `public.collaborators` can read or write app data.
-- `Admin` and `Contributor` can create gestalts.
-- `Admin` and `SLT` can update gestalts, including the SLT flag.
-- Only `Admin` can delete gestalts.
-- Any approved collaborator can add comments.
+- Cathy (Mum, Admin)
+- Lenny (Dad, Contributor)
+- Kayleigh (LSA, Contributor)
+- Sinead (SLT)
+
+Each new gestalt stores `created_by` and `created_by_role`.
+Each comment stores `author` and `role`.
 
 ## Cloudflare Pages setup
 
@@ -54,6 +43,6 @@ values
 
 ## Current behavior
 
-- If Supabase env vars are missing, the app uses bundled demo data with no auth.
-- If Supabase env vars are present, the app requires magic-link sign-in.
-- Signed-in users without a matching `collaborators` row are blocked from the data.
+- If Supabase env vars are missing, the app uses bundled demo data.
+- If Supabase env vars are present, the app reads/writes live Supabase data without login.
+- Role-based UI permissions come from the selected testing user.

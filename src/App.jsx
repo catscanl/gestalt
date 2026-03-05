@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Filter, LogOut, Lock, Mail, MessageCircle, Plus, Search, Send, ShieldCheck, Trash2 } from "lucide-react";
-import { INITIAL_GESTALTS } from "./data";
-import { getSession, onAuthStateChange, signInWithPassword, signOut, signUpWithPassword } from "./lib/auth";
-import { addComment, createGestalt, deleteGestalt, fetchCollaborator, fetchGestalts, toggleFlag } from "./lib/gestalts";
+import { AlertCircle, Filter, MessageCircle, Plus, Search, Send, Trash2, UserCircle2 } from "lucide-react";
+import { INITIAL_GESTALTS, USERS } from "./data";
+import { addComment, createGestalt, deleteGestalt, fetchGestalts, toggleFlag } from "./lib/gestalts";
 import { hasSupabaseEnv } from "./lib/supabase";
 
 const EMPTY_GESTALT = {
@@ -20,15 +19,11 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newGestalt, setNewGestalt] = useState(EMPTY_GESTALT);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(hasSupabaseEnv);
   const [errorMessage, setErrorMessage] = useState("");
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [authMode, setAuthMode] = useState("sign-in");
-  const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
-  const [authNotice, setAuthNotice] = useState("");
-  const [session, setSession] = useState(null);
-  const [collaborator, setCollaborator] = useState(null);
+  const [activeUserId, setActiveUserId] = useState(USERS[0].id);
+
+  const activeUser = USERS.find((user) => user.id === activeUserId) || USERS[0];
 
   useEffect(() => {
     if (!hasSupabaseEnv) {
@@ -38,61 +33,17 @@ export default function App() {
 
     let active = true;
 
-    async function loadSession() {
-      try {
-        const nextSession = await getSession();
-        if (active) {
-          setSession(nextSession);
-        }
-      } catch (error) {
-        if (active) {
-          setErrorMessage(error.message || "Unable to load session.");
-          setLoading(false);
-        }
-      }
-    }
-
-    loadSession();
-
-    const { data } = onAuthStateChange((nextSession) => {
-      setSession(nextSession);
-    });
-
-    return () => {
-      active = false;
-      data.subscription.unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!hasSupabaseEnv) {
-      return;
-    }
-
-    let active = true;
-
     async function loadAppData() {
-      if (!session) {
-        if (active) {
-          setCollaborator(null);
-          setGestalts([]);
-          setLoading(false);
-        }
-        return;
-      }
-
       try {
         setLoading(true);
-        const [rows, member] = await Promise.all([fetchGestalts(), fetchCollaborator()]);
+        const rows = await fetchGestalts();
 
         if (active) {
           setGestalts(rows);
-          setCollaborator(member);
           setErrorMessage("");
         }
       } catch (error) {
         if (active) {
-          setCollaborator(null);
           setGestalts([]);
           setErrorMessage(error.message || "Unable to load app data.");
         }
@@ -108,12 +59,12 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [session]);
+  }, []);
 
-  const currentRole = collaborator?.role ?? "Guest";
-  const canCreateGestalt = !hasSupabaseEnv || currentRole === "Admin" || currentRole === "Contributor";
-  const canDeleteGestalt = !hasSupabaseEnv || currentRole === "Admin";
-  const canToggleFlag = !hasSupabaseEnv || currentRole === "Admin" || currentRole === "SLT";
+  const currentRole = activeUser.role;
+  const canCreateGestalt = currentRole === "Admin" || currentRole === "Contributor";
+  const canDeleteGestalt = currentRole === "Admin";
+  const canToggleFlag = currentRole === "Admin" || currentRole === "SLT";
 
   const filteredGestalts = useMemo(
     () =>
@@ -131,43 +82,6 @@ export default function App() {
     [filterStatus, gestalts, searchQuery, showFlaggedOnly],
   );
 
-  async function handleAuthSubmit(event) {
-    event.preventDefault();
-
-    if (!authEmail.trim() || !authPassword.trim()) {
-      return;
-    }
-
-    try {
-      setIsSubmittingAuth(true);
-      if (authMode === "sign-up") {
-        await signUpWithPassword(authEmail.trim(), authPassword);
-        setAuthNotice("Account created. Sign in with the same email and password.");
-        setAuthMode("sign-in");
-      } else {
-        await signInWithPassword(authEmail.trim(), authPassword);
-        setAuthNotice("");
-      }
-      setErrorMessage("");
-    } catch (error) {
-      setErrorMessage(error.message || "Unable to authenticate.");
-    } finally {
-      setIsSubmittingAuth(false);
-    }
-  }
-
-  async function handleSignOut() {
-    try {
-      await signOut();
-      setCollaborator(null);
-      setSession(null);
-      setAuthPassword("");
-      setAuthNotice("");
-    } catch (error) {
-      setErrorMessage(error.message || "Unable to sign out.");
-    }
-  }
-
   async function handleAddGestalt(event) {
     event.preventDefault();
     if (!newGestalt.phrase.trim() || !newGestalt.meaning.trim()) {
@@ -175,7 +89,12 @@ export default function App() {
     }
 
     try {
-      const created = await createGestalt(newGestalt);
+      const payload = {
+        ...newGestalt,
+        createdBy: activeUser.fullName,
+        createdByRole: activeUser.role,
+      };
+      const created = await createGestalt(payload);
       setGestalts((current) => [created, ...current]);
       setIsAddModalOpen(false);
       setNewGestalt(EMPTY_GESTALT);
@@ -204,9 +123,9 @@ export default function App() {
     }
 
     const payload = {
-      author: collaborator?.full_name || session?.user?.email || "Unknown",
+      author: activeUser.fullName,
       text: commentText,
-      role: currentRole,
+      role: activeUser.role,
     };
 
     try {
@@ -252,208 +171,37 @@ export default function App() {
     }
   }
 
-  if (!hasSupabaseEnv) {
-    return (
-      <Shell>
-        <Header
-          subtitle="Supabase is not configured, so the app is running in local demo mode."
-          title="Gestalt Tracker"
-        />
-        <Banner tone="info">Add Supabase environment variables to enable authentication and live data.</Banner>
-        <GestaltDashboard
-          canCreateGestalt
-          canDeleteGestalt
-          canToggleFlag
-          currentRoleLabel="Demo mode"
-          filteredGestalts={filteredGestalts}
-          filterStatus={filterStatus}
-          gestalts={gestalts}
-          isAddModalOpen={isAddModalOpen}
-          loading={loading}
-          newGestalt={newGestalt}
-          searchQuery={searchQuery}
-          setFilterStatus={setFilterStatus}
-          setIsAddModalOpen={setIsAddModalOpen}
-          setNewGestalt={setNewGestalt}
-          setSearchQuery={setSearchQuery}
-          setShowFlaggedOnly={setShowFlaggedOnly}
-          showFlaggedOnly={showFlaggedOnly}
-          onAddComment={handleAddComment}
-          onAddGestalt={handleAddGestalt}
-          onDelete={handleDelete}
-          onToggleFlag={handleToggleFlag}
-        />
-      </Shell>
-    );
-  }
-
-  if (!session) {
-    return (
-      <Shell>
-        <Header
-          subtitle="Secure sign-in with Supabase email and password."
-          title="Gestalt Tracker"
-        />
-        <div className="mx-auto max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="rounded-2xl bg-indigo-100 p-3 text-indigo-700">
-              <ShieldCheck className="h-6 w-6" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">Sign in</h2>
-              <p className="text-sm text-slate-500">Use an approved email address and password.</p>
-            </div>
-          </div>
-
-          {errorMessage && <Banner tone="error">{errorMessage}</Banner>}
-          {authNotice && <Banner tone="success">{authNotice}</Banner>}
-
-          <div className="mb-5 flex rounded-2xl bg-slate-100 p-1 text-sm">
-            <button
-              className={`flex-1 rounded-xl px-3 py-2 font-medium transition ${
-                authMode === "sign-in" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
-              }`}
-              onClick={() => setAuthMode("sign-in")}
-              type="button"
-            >
-              Sign in
-            </button>
-            <button
-              className={`flex-1 rounded-xl px-3 py-2 font-medium transition ${
-                authMode === "sign-up" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
-              }`}
-              onClick={() => setAuthMode("sign-up")}
-              type="button"
-            >
-              Create account
-            </button>
-          </div>
-
-          <form className="space-y-4" onSubmit={handleAuthSubmit}>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Email</label>
-              <div className="flex items-center gap-2 rounded-2xl border border-slate-300 px-3 py-2">
-                <Mail className="h-4 w-4 text-slate-400" />
-                <input
-                  autoFocus
-                  className="w-full border-0 p-0 outline-none"
-                  placeholder="you@example.com"
-                  type="email"
-                  value={authEmail}
-                  onChange={(event) => setAuthEmail(event.target.value)}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Password</label>
-              <div className="flex items-center gap-2 rounded-2xl border border-slate-300 px-3 py-2">
-                <Lock className="h-4 w-4 text-slate-400" />
-                <input
-                  className="w-full border-0 p-0 outline-none"
-                  placeholder="At least 6 characters"
-                  type="password"
-                  value={authPassword}
-                  onChange={(event) => setAuthPassword(event.target.value)}
-                />
-              </div>
-            </div>
-
-            <button
-              className="w-full rounded-2xl bg-indigo-600 px-4 py-3 font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-              disabled={isSubmittingAuth}
-              type="submit"
-            >
-              {isSubmittingAuth
-                ? "Working..."
-                : authMode === "sign-up"
-                  ? "Create account"
-                  : "Sign in"}
-            </button>
-          </form>
-        </div>
-      </Shell>
-    );
-  }
-
-  if (!loading && !collaborator) {
-    return (
-      <Shell>
-        <Header
-          subtitle="You are signed in, but this email has not been granted access yet."
-          title="Gestalt Tracker"
-        />
-        {errorMessage && <Banner tone="error">{errorMessage}</Banner>}
-        <div className="mx-auto max-w-xl rounded-3xl border border-amber-200 bg-amber-50 p-8 text-amber-950 shadow-sm">
-          <h2 className="mb-2 text-lg font-bold">Access not granted</h2>
-          <p className="mb-4 text-sm">
-            Add <strong>{session.user.email}</strong> to the `collaborators` table in Supabase, then refresh.
-          </p>
-          <button
-            className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2 font-medium text-white"
-            onClick={handleSignOut}
-            type="button"
-          >
-            <LogOut className="h-4 w-4" />
-            Sign out
-          </button>
-        </div>
-      </Shell>
-    );
-  }
-
-  if (loading || !collaborator) {
-    return (
-      <Shell>
-        <Header
-          subtitle={session?.user?.email || "Loading your workspace..."}
-          title="Gestalt Tracker"
-        />
-        {errorMessage && <Banner tone="error">{errorMessage}</Banner>}
-        <div className="rounded-3xl border border-slate-200 bg-white px-6 py-12 text-center text-slate-500 shadow-sm">
-          Loading your workspace...
-        </div>
-      </Shell>
-    );
-  }
-
   return (
     <Shell>
       <Header
-        rightSlot={
-          <button
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
-            onClick={handleSignOut}
-            type="button"
-          >
-            <LogOut className="h-4 w-4" />
-            Sign out
-          </button>
-        }
-        subtitle={session.user.email}
+        subtitle={hasSupabaseEnv ? "Supabase live mode" : "Local demo mode"}
         title="Gestalt Tracker"
       />
 
+      {!hasSupabaseEnv && (
+        <Banner tone="info">Add Supabase environment variables to enable shared live data.</Banner>
+      )}
       {errorMessage && <Banner tone="error">{errorMessage}</Banner>}
 
       <GestaltDashboard
+        activeUserId={activeUserId}
         canCreateGestalt={canCreateGestalt}
         canDeleteGestalt={canDeleteGestalt}
         canToggleFlag={canToggleFlag}
-        currentRoleLabel={`${collaborator.full_name} · ${collaborator.role}`}
         filteredGestalts={filteredGestalts}
         filterStatus={filterStatus}
-        gestalts={gestalts}
         isAddModalOpen={isAddModalOpen}
         loading={loading}
         newGestalt={newGestalt}
         searchQuery={searchQuery}
+        setActiveUserId={setActiveUserId}
         setFilterStatus={setFilterStatus}
         setIsAddModalOpen={setIsAddModalOpen}
         setNewGestalt={setNewGestalt}
         setSearchQuery={setSearchQuery}
         setShowFlaggedOnly={setShowFlaggedOnly}
         showFlaggedOnly={showFlaggedOnly}
+        users={USERS}
         onAddComment={handleAddComment}
         onAddGestalt={handleAddGestalt}
         onDelete={handleDelete}
@@ -471,7 +219,7 @@ function Shell({ children }) {
   );
 }
 
-function Header({ title, subtitle, rightSlot = null }) {
+function Header({ title, subtitle }) {
   return (
     <header className="sticky top-0 z-10 rounded-3xl border border-white/60 bg-white/85 px-5 py-4 shadow-sm backdrop-blur">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -479,7 +227,6 @@ function Header({ title, subtitle, rightSlot = null }) {
           <h1 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl">{title}</h1>
           <p className="text-sm text-slate-500">{subtitle}</p>
         </div>
-        {rightSlot}
       </div>
     </header>
   );
@@ -489,40 +236,61 @@ function Banner({ children, tone }) {
   const styles = {
     error: "border-red-200 bg-red-50 text-red-800",
     info: "border-indigo-200 bg-indigo-50 text-indigo-900",
-    success: "border-emerald-200 bg-emerald-50 text-emerald-800",
   };
 
   return <div className={`rounded-2xl border px-4 py-3 text-sm ${styles[tone]}`}>{children}</div>;
 }
 
 function GestaltDashboard({
+  activeUserId,
   canCreateGestalt,
   canDeleteGestalt,
   canToggleFlag,
-  currentRoleLabel,
   filteredGestalts,
   filterStatus,
   isAddModalOpen,
   loading,
   newGestalt,
   searchQuery,
+  setActiveUserId,
   setFilterStatus,
   setIsAddModalOpen,
   setNewGestalt,
   setSearchQuery,
   setShowFlaggedOnly,
   showFlaggedOnly,
+  users,
   onAddComment,
   onAddGestalt,
   onDelete,
   onToggleFlag,
 }) {
+  const currentUser = users.find((user) => user.id === activeUserId) || users[0];
+
   return (
     <>
-      <div className="flex items-center justify-between rounded-3xl border border-white/60 bg-white/70 px-5 py-4 shadow-sm">
+      <div className="flex flex-col gap-3 rounded-3xl border border-white/60 bg-white/70 px-5 py-4 shadow-sm sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Current access</p>
-          <p className="mt-1 text-sm font-semibold text-slate-700">{currentRoleLabel}</p>
+          <p className="mt-1 text-sm font-semibold text-slate-700">{currentUser.label}</p>
+        </div>
+
+        <div className="w-full sm:w-auto">
+          <label className="mb-1 block text-xs uppercase tracking-[0.18em] text-slate-400">Acting as</label>
+          <div className="relative">
+            <UserCircle2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <select
+              className="w-full rounded-2xl border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm outline-none ring-indigo-500 transition focus:ring-2 sm:min-w-[260px]"
+              value={activeUserId}
+              onChange={(event) => setActiveUserId(event.target.value)}
+            >
+              {users.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -757,6 +525,9 @@ function GestaltCard({
               <span>{gestalt.meaning}</span>
             </p>
             {gestalt.source && <p className="text-xs text-slate-400">Source: {gestalt.source}</p>}
+            <p className="mt-1 text-xs text-slate-400">
+              Added by {gestalt.createdBy || "Unknown"} ({gestalt.createdByRole || "Contributor"})
+            </p>
           </div>
 
           <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-3 sm:flex-col sm:items-end sm:border-t-0 sm:pt-0">
