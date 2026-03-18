@@ -11,7 +11,7 @@ create table if not exists public.gestalts (
   date_of_entry date,
   inactive_date date,
   usage_context text not null default '',
-  status text not null check (status in ('Active', 'Fading', 'Archived')),
+  status text not null check (status in ('Emerging', 'Active', 'Fading', 'Archived')),
   flagged_for_slt boolean not null default false,
   created_by text not null default 'Unknown',
   created_by_role text not null default 'Contributor' check (created_by_role in ('Admin', 'Contributor', 'SLT')),

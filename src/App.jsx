@@ -426,7 +426,7 @@ function GestaltDashboard({
 
       <div className="flex flex-wrap items-center gap-2">
         <Filter className="hidden h-4 w-4 text-slate-400 sm:block" />
-        {["All", "Active", "Fading", "Archived"].map((status) => (
+        {["All", "Emerging", "Active", "Fading", "Archived"].map((status) => (
           <button
             key={status}
             className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
@@ -559,6 +559,7 @@ function GestaltDashboard({
                     setNewGestalt((current) => ({ ...current, status: event.target.value }))
                   }
                 >
+                  <option value="Emerging">Emerging</option>
                   <option value="Active">Active</option>
                   <option value="Fading">Fading</option>
                   <option value="Archived">Archived</option>
@@ -702,6 +703,7 @@ function GestaltDashboard({
                     setEditGestalt((current) => ({ ...current, status: event.target.value }))
                   }
                 >
+                  <option value="Emerging">Emerging</option>
                   <option value="Active">Active</option>
                   <option value="Fading">Fading</option>
                   <option value="Archived">Archived</option>
@@ -981,6 +983,7 @@ function GestaltCard({
 
 function StatusBadge({ status }) {
   const colors = {
+    Emerging: "border-sky-200 bg-sky-50 text-sky-700",
     Active: "border-emerald-200 bg-emerald-50 text-emerald-700",
     Fading: "border-amber-200 bg-amber-50 text-amber-700",
     Archived: "border-slate-200 bg-slate-50 text-slate-600",
